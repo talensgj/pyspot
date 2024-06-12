@@ -8,8 +8,7 @@ from astropy.table import Table
 
 import matplotlib.pyplot as plt
 
-rng = default_rng()
-
+# Some global constants.
 DAY2SEC = 86400
 YEAR2DAY = 365
 DEG2RAD = np.pi / 180.0
@@ -20,6 +19,18 @@ OMEGA_SUN = 2 * np.pi / (PROT_SUN * DAY2SEC)
 ASUN = 0.12
 
 t1 = Table.read('meunier_19a_t1.dat', format='ascii')
+
+# Default random number generator.
+RNG = default_rng(seed=8348435735)
+
+
+def set_random_seed(random_seed):
+
+    global RNG
+    if random_seed is not None:
+        RNG = default_rng(seed=random_seed)
+
+    return
 
 ####################################
 # FROM TEFF TO ACTIVITY PARAMETERS #
@@ -68,7 +79,7 @@ def get_lrhk_from_bv(bv):
     Smin = get_Smin_from_bv(bv)
     lrhkmin = get_lrhk_from_S_and_bv(Smin, bv)
     lrhkmax = -0.375 * bv - 4.4
-    return rng.random() * (lrhkmax - lrhkmin) + lrhkmin
+    return RNG.random() * (lrhkmax - lrhkmin) + lrhkmin
 
 
 def get_ltauc_from_bv(bv):
@@ -81,7 +92,7 @@ def get_ltauc_from_bv(bv):
     
 def get_prot_from_lrhk_and_bv(lrhk, bv):
     Ro = 0.808 - 2.966 * (lrhk + 4.52)
-    delta = rng.random() * 0.4 - 0.2
+    delta = RNG.random() * 0.4 - 0.2
     ltc = get_ltauc_from_bv(bv)
     return (Ro + delta) * 10**ltc 
     
@@ -95,7 +106,7 @@ def get_prange_from_teff_and_prot(teff, prot):
 
 def get_latrange(): 
     lat_min = 0.0
-    lat_max = 32.0 + 20.0 * rng.random()
+    lat_max = 32.0 + 20.0 * RNG.random()
     return lat_min, lat_max # in degrees
 
 def get_omega01_from_prange_and_latrange(pmin, pmax, lat_min, lat_max):
@@ -111,7 +122,7 @@ def get_omega_from_lat_and_omega01(lat, omega_0, omega_1):
     return omega_0 + omega_1 * np.sin(lat * DEG2RAD)**2 # in radians per second
                        
 def get_pcyc_from_prot(prot):
-    delta = rng.random() * 0.6 - 0.3
+    delta = RNG.random() * 0.6 - 0.3
     y = 0.84 * np.log10(1/prot) + 3.14 + delta
     return prot * 10**y
 
@@ -122,7 +133,7 @@ def get_acyc_from_bv_and_lrhk(bv, lrhk, level='random'):
         Acyc_max = 0.727 * 0.851 - 0.292
     Acyc_min = max([0.28 * bv - 0.196, 0.342 * lrhk + 1.703, 0.005])
 
-    tmp = rng.random()
+    tmp = RNG.random()
     if level == 'random':
         pass
     elif level == 'high':
@@ -144,7 +155,7 @@ def get_arate_from_acyc(acyc):
 
 def regions(activityrate = 1, cycle_period = 10, cycle_overlap = 0, randspots = False, \
             maxlat = 70, minlat = 0, \
-            tsim = 1000, tstart = 0, verbose  = True):
+            tsim = 1000, tstart = 0, verbose  = True, random_seed=None):
 
 # ;  According to Schrijver and Harvey (1994), the number of active regions
 # ;  emerging with areas in the range [A,A+dA] in a time dt is given by 
@@ -164,6 +175,8 @@ def regions(activityrate = 1, cycle_period = 10, cycle_overlap = 0, randspots = 
 # ;
 # ;  In our simulation we use a lower value of a(t) to account for "correlated"
 # ;  regions.
+
+    set_random_seed(random_seed)
 
     nbin=5                              # number of area bins
     delt=0.5                            # delta ln(A)
@@ -286,7 +299,7 @@ def regions(activityrate = 1, cycle_period = 10, cycle_overlap = 0, randspots = 
                         r0 = ru0[j] + rc0[:,j,k]
                         rtot = r0.sum()
                         ssum = rtot * ftot
-                        x = rng.random()
+                        x = RNG.random()
                         if x <= ssum:
                             nb = 0
                             sumb = rtot * fact[0]
@@ -298,28 +311,28 @@ def regions(activityrate = 1, cycle_period = 10, cycle_overlap = 0, randspots = 
                             while x > sumb:
                                 i = i + 1
                                 sumb = sumb + r0[i] * fact[nb]
-                            lon = dlon * (rng.random() + float(i))
-                            lat = dlat * (rng.random() + float(j))
+                            lon = dlon * (RNG.random() + float(i))
+                            lat = dlat * (RNG.random() + float(j))
                             if (nday > tstart):
-                                reg_tims.append(rng.random() + nday)
+                                reg_tims.append(RNG.random() + nday)
                                 reg_lons.append(lon)
                                 if k == 0:                       # Insert on N hemisphere
                                     reg_lats.append(lat)
                                 else:
                                     reg_lats.append(-lat)
-                                x = rng.normal()
+                                x = RNG.normal()
                                 while abs(x) > 1.6:
-                                    x = rng.normal()
-                                y = rng.normal()
+                                    x = RNG.normal()
+                                y = RNG.normal()
                                 while abs(y) >= 1.6:
-                                    y = rng.normal()
-                                z = rng.random()
+                                    y = RNG.normal()
+                                z = RNG.random()
                                 if z > 0.14:
                                     ang = 0.5 * lat + 2.0 + 27. * x * y # tilt angle (degrees)
                                 else:
-                                    z = rng.normal()
+                                    z = RNG.normal()
                                     while z > 0.5:
-                                        z = rng.normal()
+                                        z = RNG.normal()
                                     ang =  z * np.pi / 180 # yes I know this is weird.
                                 reg_angs.append(ang)
                                 if verbose:
@@ -346,9 +359,12 @@ class spots():
     """Holds parameters for spots on a given star"""
     def __init__(self, reg_arr,
                  incl = None, omega_0 = OMEGA_SUN, omega_1 = 0.0, \
-                 dur = None, threshold = 0.1):
+                 dur = None, threshold = 0.1, random_seed=None):
         '''Generate initial parameter set for spots (emergence times
         and initial locations are p[)'''
+
+        set_random_seed(random_seed)
+
         # set global stellar parameters which are the same for all spots
         # inclination (in degrees)
         if incl == None:
@@ -383,7 +399,7 @@ class spots():
         med = 10 * 1e-6
         mu = np.log(med)
         sig = np.sqrt(2*np.log(mea/med))
-        self.decay_rate = rng.lognormal(mean=mu, sigma=sig, size=self.nspot)
+        self.decay_rate = RNG.lognormal(mean=mu, sigma=sig, size=self.nspot)
 
     def calci(self, time, i):
         '''Evolve one spot and calculate its impact on the stellar flux'''
@@ -438,7 +454,10 @@ def simulate_lc(teff=5777.,
                 sim_id=None,
                 odir=None,
                 verbose=True,
-                doplot=True):
+                doplot=True,
+                random_seed=None):
+    
+    set_random_seed(random_seed)
 
     if sim_id is None:
         sim_id = 'test'
@@ -457,11 +476,11 @@ def simulate_lc(teff=5777.,
     omega_0, omega_1 = get_omega01_from_prange_and_latrange(pmin, pmax, lmin, lmax)
     pcyc =  get_pcyc_from_prot(prot)
     clen = pcyc / YEAR2DAY
-    coverlap = rng.random() * 0.1 * clen 
+    coverlap = RNG.random() * 0.1 * clen
     acyc = get_acyc_from_bv_and_lrhk(bv, lrhk, level=level)
     arate = get_arate_from_acyc(acyc)
     if incl is None:
-        incl = np.arccos(rng.random()) / DEG2RAD
+        incl = np.arccos(RNG.random()) / DEG2RAD
     
     # save star's overall properties at the top of the regions file
     rfile = os.path.join(odir, 'regions_{}.txt'.format(sim_id)) # save modified regions params
@@ -517,10 +536,10 @@ def simulate_lc(teff=5777.,
                       tsim=span, tstart=0, verbose=verbose)
 
     # Pick point to be t0 such that the middle of the requested duration covers the entire middle cycle.
-    # t0 = n*pcyc - dur/2 + rng.random()*pcyc
+    # t0 = n*pcyc - dur/2 + RNG.random()*pcyc
 
     # Picke a point to be t0 such that the middle of the requested duration covers the middle of the middle cycle.
-    t0 = (n + 0.25)*pcyc - dur/2 + rng.random()*pcyc/2
+    t0 = (n + 0.25)*pcyc - dur/2 + RNG.random()*pcyc/2
 
     # plt.plot(reg_arr[0] - t0, reg_arr[3], '.')
     # plt.axvspan(0, dur, alpha=0.2)
