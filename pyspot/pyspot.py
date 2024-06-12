@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 import numpy as np
 from numpy.random import default_rng
@@ -46,7 +47,7 @@ def get_stpar_from_teff(teff):
     if teff > max(t1['Teff']):
         print('Warning: Teff is outside range of conversion table. Returning B-V for Teff={}'.format(max(t1['Teff'])))
         return min(t1['BV'])
-    g = interp1d(t1['Teff'],t1['BV'])
+    g = interp1d(t1['Teff'], t1['BV'])
     return g(teff).item()
 
 
@@ -89,13 +90,15 @@ def get_ltauc_from_bv(bv):
         return 1.362 - 0.166 * x + 0.025 * x**2 - 5.323 * x**3
     else:
         return 1.362 - 0.14 * x
-    
+
+
 def get_prot_from_lrhk_and_bv(lrhk, bv):
     Ro = 0.808 - 2.966 * (lrhk + 4.52)
     delta = RNG.random() * 0.4 - 0.2
     ltc = get_ltauc_from_bv(bv)
     return (Ro + delta) * 10**ltc 
-    
+
+
 def get_prange_from_teff_and_prot(teff, prot):
     p0 = -3.485 + 2.47810e-4 * teff
     p1 = 1.597 - 1.3510e-4 * teff
@@ -104,10 +107,12 @@ def get_prange_from_teff_and_prot(teff, prot):
     pmin = pmax * (1 - alpha)
     return pmin, pmax
 
+
 def get_latrange(): 
     lat_min = 0.0
     lat_max = 32.0 + 20.0 * RNG.random()
-    return lat_min, lat_max # in degrees
+    return lat_min, lat_max  # in degrees
+
 
 def get_omega01_from_prange_and_latrange(pmin, pmax, lat_min, lat_max):
     omega_min = 2 * np.pi / pmax / DAY2SEC
@@ -117,14 +122,17 @@ def get_omega01_from_prange_and_latrange(pmin, pmax, lat_min, lat_max):
     omega_1 = (omega_min - omega_max) / (s2max - s2min)
     omega_0 = omega_max - omega_1 * s2min 
     return omega_0, omega_1 
-    
+
+
 def get_omega_from_lat_and_omega01(lat, omega_0, omega_1):
-    return omega_0 + omega_1 * np.sin(lat * DEG2RAD)**2 # in radians per second
-                       
+    return omega_0 + omega_1 * np.sin(lat * DEG2RAD)**2  # in radians per second
+
+
 def get_pcyc_from_prot(prot):
     delta = RNG.random() * 0.6 - 0.3
     y = 0.84 * np.log10(1/prot) + 3.14 + delta
     return prot * 10**y
+
 
 def get_acyc_from_bv_and_lrhk(bv, lrhk, level='random'):
     if bv < 0.851:
@@ -145,6 +153,7 @@ def get_acyc_from_bv_and_lrhk(bv, lrhk, level='random'):
 
     return tmp * (Acyc_max - Acyc_min) + Acyc_min
 
+
 def get_arate_from_acyc(acyc):
     # asun = get_acyc_from_bv_and_lrhk(BV_SUN, LRHK_SUN)
     return acyc/ASUN
@@ -153,35 +162,47 @@ def get_arate_from_acyc(acyc):
 # ACTIVE REGION EMERGENCE #
 ###########################
 
-def regions(activityrate = 1, cycle_period = 10, cycle_overlap = 0, randspots = False, \
-            maxlat = 70, minlat = 0, \
-            tsim = 1000, tstart = 0, verbose  = True, random_seed=None):
 
-# ;  According to Schrijver and Harvey (1994), the number of active regions
-# ;  emerging with areas in the range [A,A+dA] in a time dt is given by 
-# ;
-# ;    n(A,t) dA dt = a(t) A^(-2) dA dt ,
-# ;
-# ;  where A is the "initial" area of a bipole in square degrees, and t is
-# ;  the time in days; a(t) varies from 1.23 at cycle minimum to 10 at cycle
-# ;  maximum.
-# ;
-# ;  The bipole area is the area within the 25-Gauss contour in the
-# ;  "initial" state, i.e. time of maximum development of the active region.
-# ;  The assumed peak flux density in the initial sate is 1100 G, and
-# ;  width = 0.2*bsiz (see disp_region). The parameters written onto the
-# ;  file are corrected for further diffusion and correspond to the time
-# ;  when width = 4 deg, the smallest width that can be resolved with lmax=63.
-# ;
-# ;  In our simulation we use a lower value of a(t) to account for "correlated"
-# ;  regions.
+def regions(activityrate: float = 1,
+            cycle_period: float = 10,
+            cycle_overlap: float = 0,
+            randspots: bool = False,
+            maxlat: float = 70.,
+            minlat: float = 0.,
+            tsim: float = 1000,
+            tstart: float = 0,
+            verbose: bool = True,
+            random_seed: Optional[int] = None
+            ) -> np.ndarray:
+    """
+
+    According to Schrijver and Harvey (1994), the number of active regions
+    emerging with areas in the range [A,A+dA] in a time dt is given by
+
+    n(A,t) dA dt = a(t) A^(-2) dA dt ,
+
+    where A is the "initial" area of a bipole in square degrees, and t is
+    the time in days; a(t) varies from 1.23 at cycle minimum to 10 at cycle
+    maximum.
+
+    The bipole area is the area within the 25-Gauss contour in the
+    "initial" state, i.e. time of maximum development of the active region.
+    The assumed peak flux density in the initial sate is 1100 G, and
+    width = 0.2*bsiz (see disp_region). The parameters written onto the
+    file are corrected for further diffusion and correspond to the time
+    when width = 4 deg, the smallest width that can be resolved with lmax=63.
+
+    In our simulation we use a lower value of a(t) to account for "correlated"
+    regions.
+
+    """
 
     set_random_seed(random_seed)
 
-    nbin=5                              # number of area bins
-    delt=0.5                            # delta ln(A)
-    amax=100.                           # orig. area of largest bipoles (deg^2)
-    dcon = np.exp(0.5*delt)-np.exp(-0.5*delt)   # contant from integ. over bin
+    nbin = 5  # number of area bins
+    delt = 0.5  # delta ln(A)
+    amax = 100.  # orig. area of largest bipoles (deg^2)
+    dcon = np.exp(0.5*delt) - np.exp(-0.5*delt)  # contant from integ. over bin
 
     if verbose:
         print('Creating regions with the following parameters:')
@@ -204,7 +225,7 @@ def regions(activityrate = 1, cycle_period = 10, cycle_overlap = 0, randspots = 
     ftot = fact.sum()                         # sum of reduction factors
     bsiz = np.sqrt(amax/fact)               # array of bipole separations (deg)
     tau1 = 5                                  # first and last times (in days) for
-    tau2 = 15                                 #   emergence of "correlated" regions
+    tau2 = 15                                 # emergence of "correlated" regions
     prob = 0.001                              # total probability for "correlation"
     nlon = 36                                 # number of longitude bins
     nlat = 16                                 # number of latitude bins       
@@ -214,7 +235,7 @@ def regions(activityrate = 1, cycle_period = 10, cycle_overlap = 0, randspots = 
 
     # Initialize time since last emergence of a large region, as function
     # of longitude, latitude and hemisphere:
-    tau = np.zeros((nlon,nlat,2),'int') + tau2
+    tau = np.zeros((nlon, nlat, 2), 'int') + tau2
     dlon = 360. / nlon
     dlat = maxlat / nlat
     
@@ -241,14 +262,14 @@ def regions(activityrate = 1, cycle_period = 10, cycle_overlap = 0, randspots = 
         #  Initialize rate of emergence for largest regions, and add 1 day
         #  to time of last emergence:
         tau = tau + 1
-        rc0 = np.zeros((nlon,nlat,2))
-        l = (tau > tau1) & (tau <= tau2)
-        if l.any():
-            rc0[l] = prob / (tau2 - tau1)
+        rc0 = np.zeros((nlon, nlat, 2))
+        mask = (tau > tau1) & (tau <= tau2)
+        if mask.any():
+            rc0[mask] = prob / (tau2 - tau1)
  
         #  Loop over current and previous cycle:
-        for icycle in [0,1]:
-            nc = ncur-icycle # index of cycle
+        for icycle in [0, 1]:
+            nc = ncur-icycle  # index of cycle
             if ncur == 0:
                 start_day = nc * ncycle
             else:  
@@ -262,8 +283,8 @@ def regions(activityrate = 1, cycle_period = 10, cycle_overlap = 0, randspots = 
            
             nstart = start_day        # start date of cycle
             if (nday-nstart) < nclen:  
-                ic = 1 - 2 * ((nc + 2) % 2) # +1 for even, -1 for odd cycle
-                phase = float(nday-nstart) / nclen # phase within the cycle
+                ic = 1 - 2 * ((nc + 2) % 2)  # +1 for even, -1 for odd cycle
+                phase = float(nday-nstart) / nclen  # phase within the cycle
                     
                 # Emergence rate of largest "uncorrelated" regions (number per day,
                 # both hemispheres), from Schrijver and Harvey (1994):
@@ -278,9 +299,9 @@ def regions(activityrate = 1, cycle_period = 10, cycle_overlap = 0, randspots = 
                     nlat2 = np.floor(maxlat / dlat).astype(int)
                     nlat2 = min([nlat2, nlat - 1])
                 else:
-                    latavg = maxlat + (minlat - maxlat)*phase #+ 5.*phase**2
-                    latrms = (maxlat/5.) - latrmsd * phase # rms latitude (degrees)
-                    nlat1 = np.floor(max([maxlat * 0.9 - 1.2 * maxlat * phase, 0.0]) / dlat).astype(int) # first and last index
+                    latavg = maxlat + (minlat - maxlat)*phase  # + 5.*phase**2
+                    latrms = (maxlat/5.) - latrmsd * phase  # rms latitude (degrees)
+                    nlat1 = np.floor(max([maxlat * 0.9 - 1.2 * maxlat * phase, 0.0]) / dlat).astype(int)  # first and last index
                     nlat2 = np.floor(min([maxlat + 15. - maxlat * phase, maxlat]) / dlat).astype(int)
                     nlat2 = min([nlat2, nlat - 1])
                 
@@ -288,15 +309,15 @@ def regions(activityrate = 1, cycle_period = 10, cycle_overlap = 0, randspots = 
 
                 p = np.zeros(nlat)
                 for j in np.arange(nlat2-nlat1+1).astype(int) + nlat1:
-                    p[j] = np.exp( - ((dlat * (0.5 + j) - latavg) / latrms)**2)
+                    p[j] = np.exp(- ((dlat * (0.5 + j) - latavg) / latrms)**2)
                 ru0 = ru0_tot * p / (p.sum() * nlon * 2)
             
                 # Loops over hemisphere and latitude:
-                for k in [0,1]:
+                for k in [0, 1]:
                     for j in np.arange(nlat2-nlat1+1).astype(int) + nlat1:
                         # Emergence rates of largest regions per longitude/latitude bin (number
                         # per day):
-                        r0 = ru0[j] + rc0[:,j,k]
+                        r0 = ru0[j] + rc0[:, j, k]
                         rtot = r0.sum()
                         ssum = rtot * ftot
                         x = RNG.random()
@@ -313,7 +334,7 @@ def regions(activityrate = 1, cycle_period = 10, cycle_overlap = 0, randspots = 
                                 sumb = sumb + r0[i] * fact[nb]
                             lon = dlon * (RNG.random() + float(i))
                             lat = dlat * (RNG.random() + float(j))
-                            if (nday > tstart):
+                            if nday > tstart:
                                 reg_tims.append(RNG.random() + nday)
                                 reg_lons.append(lon)
                                 if k == 0:                       # Insert on N hemisphere
@@ -328,72 +349,89 @@ def regions(activityrate = 1, cycle_period = 10, cycle_overlap = 0, randspots = 
                                     y = RNG.normal()
                                 z = RNG.random()
                                 if z > 0.14:
-                                    ang = 0.5 * lat + 2.0 + 27. * x * y # tilt angle (degrees)
+                                    ang = 0.5 * lat + 2.0 + 27. * x * y  # tilt angle (degrees)
                                 else:
                                     z = RNG.normal()
                                     while z > 0.5:
                                         z = RNG.normal()
-                                    ang =  z * np.pi / 180 # yes I know this is weird.
+                                    ang = z * np.pi / 180  # yes I know this is weird.
                                 reg_angs.append(ang)
                                 if verbose:
                                     print(reg_tims[-1], reg_lats[-1], reg_lons[-1], reg_angs[-1])
                             ncnt = ncnt + 1
                             if nb < 1:
-                                tau[i,j,k] = 0
+                                tau[i, j, k] = 0
               
     if verbose:
-        print('Total number of regions:  ',ncnt)
+        print('Total number of regions:  ', ncnt)
 
     reg_arr = np.zeros((4, len(reg_tims)))
     reg_arr[0] = np.array(reg_tims)
     reg_arr[1] = np.array(reg_lats)
     reg_arr[2] = np.array(reg_lons)
     reg_arr[3] = np.array(reg_angs) * DEG2RAD
+
     return reg_arr
 
 #####################
 # FROM SPOTS TO LCS #
 #####################
 
-class spots():
-    """Holds parameters for spots on a given star"""
-    def __init__(self, reg_arr,
-                 incl = None, omega_0 = OMEGA_SUN, omega_1 = 0.0, \
-                 dur = None, threshold = 0.1, random_seed=None):
-        '''Generate initial parameter set for spots (emergence times
-        and initial locations are p[)'''
+
+class Spots:
+    """ Holds parameters for spots on a given star.
+    """
+
+    def __init__(self,
+                 reg_arr: np.ndarray,
+                 incl: Optional[float] = None,
+                 omega_0: float = OMEGA_SUN,
+                 omega_1: float = 0.0,
+                 dur: Optional[float] = None,
+                 threshold: float = 0.1,
+                 random_seed: Optional[int] = None
+                 ) -> None:
+        """ Generate initial parameter set for spots (emergence times and
+            initial locations are p[)
+        """
 
         set_random_seed(random_seed)
 
         # set global stellar parameters which are the same for all spots
         # inclination (in degrees)
-        if incl == None:
-            self.incl = np.arcos(np.random.uniform()) / DEG2RAD
+        if incl is None:
+            self.incl = np.arccos(np.random.uniform()) / DEG2RAD
         else:
             self.incl = incl
+
         # rotation and differential rotation (in radians / sec)
         self.omega_0 = omega_0
         self.omega_1 = omega_1
+
         # regions parameters
-        t0 = reg_arr[0,:]
-        lat = reg_arr[1,:]
-        lon = reg_arr[2,:]
-        ang = reg_arr[3,:]
+        t0 = reg_arr[0, :]
+        lat = reg_arr[1, :]
+        lon = reg_arr[2, :]
+        ang = reg_arr[3, :]
+
         # keep only spots emerging within specified time-span, with peak B-field > threshold
-        if dur == None:
+        if dur is None:
             self.dur = t0.max() 
         else:
             self.dur = dur
-        # l = (t0 < self.dur) * (ang > threshold)
-        l = ang > threshold
-        self.nspot = l.sum()
-        self.t0 = t0[l]
-        self.lat = lat[l]
-        self.lon = lon[l]
+
+        # mask = (t0 < self.dur) * (ang > threshold)
+        mask = ang > threshold
+        self.nspot = mask.sum()
+        self.t0 = t0[mask]
+        self.lat = lat[mask]
+        self.lon = lon[mask]
+
         # The settings below are designed approximately match the distributions used in 
         # Borgniet et al. (2015) and Meunier et al. (2019)        
         # spot sizes
-        self.amax = ang[l]**2 * 300 * 1e-6 
+        self.amax = ang[mask]**2 * 300 * 1e-6
+
         # spot emergence and decay timescales
         mea = 15 * 1e-6
         med = 10 * 1e-6
@@ -401,61 +439,80 @@ class spots():
         sig = np.sqrt(2*np.log(mea/med))
         self.decay_rate = RNG.lognormal(mean=mu, sigma=sig, size=self.nspot)
 
-    def calci(self, time, i):
-        '''Evolve one spot and calculate its impact on the stellar flux'''
-        '''NB: Currently there is no spot drift or shear'''
+    def _calci(self,
+               time: np.ndarray,
+               i: int
+               ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """ Evolve one spot and calculate its impact on the stellar flux.
+
+        NB: Currently there is no spot drift or shear
+
+        """
+
         # Spot area (linear growth and decay)
         area = np.zeros(len(time)) 
         decay_time = self.amax[i] / self.decay_rate[i]
         emerge_time = decay_time / 10.0
+
         # exponential growth and decay
-        l = time < self.t0[i]
-        area[l] = self.amax[i] * np.exp(-(self.t0[i]-time[l]) / emerge_time)
-        l = time >= self.t0[i]
-        area[l] = self.amax[i] * np.exp(-(time[l]-self.t0[i]) / decay_time)
+        mask = time < self.t0[i]
+        area[mask] = self.amax[i] * np.exp(-(self.t0[i]-time[mask]) / emerge_time)
+        mask = time >= self.t0[i]
+        area[mask] = self.amax[i] * np.exp(-(time[mask]-self.t0[i]) / decay_time)
+
 #         # linear growth and decay
 #         l = (time >= (self.t0[i]-emerge_time)) * (time < self.t0[i])
 #         area[l] = self.amax[i] * (self.t0[i]-time[l]) / emerge_time
 #         l = (time >= self.t0[i]) * (time < (self.t0[i]+decay_time))
 #         area[l] = self.amax[i] * (1-(time[l]-self.t0[i]) / decay_time)
-        # Rotation rate
-        ome = get_omega_from_lat_and_omega01(self.lat[i], self.omega_0, self.omega_1) # in radians per second
-        # Fore-shortening 
-        phase = ome * time * DAY2SEC + self.lon[i] * DEG2RAD # in radians
-        beta = np.cos(self.incl * DEG2RAD) * np.sin(self.lat[i] * DEG2RAD) + \
-            np.sin(self.incl * DEG2RAD) * np.cos(self.lat[i] * DEG2RAD) * np.cos(phase)
-        # Differential effect on stellar flux
-        dF = - 2 * area * beta
-        dF[beta < 0] = 0
-        return area, ome, beta, dF
 
-    def calc(self, time):
-        '''Calculations for all spots'''
+        # Rotation rate
+        ome = get_omega_from_lat_and_omega01(self.lat[i], self.omega_0, self.omega_1)  # in radians per second
+
+        # Fore-shortening 
+        phase = ome * time * DAY2SEC + self.lon[i] * DEG2RAD  # in radians
+        beta = (np.cos(self.incl * DEG2RAD) * np.sin(self.lat[i] * DEG2RAD) +
+                np.sin(self.incl * DEG2RAD) * np.cos(self.lat[i] * DEG2RAD) * np.cos(phase))
+
+        # Differential effect on stellar flux
+        delta_flux = - 2 * area * beta
+        delta_flux[beta < 0] = 0
+
+        return area, ome, beta, delta_flux
+
+    def calc(self, time: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """ Calculations for all spots.
+        """
+
         N = len(time)
         M = self.nspot
         area = np.zeros((M, N))
         ome = np.zeros(M)
         beta = np.zeros((M, N))
-        dF = np.zeros((M, N))
+        delta_flux = np.zeros((M, N))
         for i in np.arange(M):
-            area_i, omega_i, beta_i, dF_i = self.calci(time, i)
-            area[i,:] = area_i
+            area_i, omega_i, beta_i, dflux_i = self._calci(time, i)
+            area[i, :] = area_i
             ome[i] = omega_i
-            beta[i,:] = beta_i
-            dF[i,:] = dF_i
-        return area, ome, beta, dF
+            beta[i, :] = beta_i
+            delta_flux[i, :] = dflux_i
+
+        return area, ome, beta, delta_flux
 
 
-def simulate_lc(teff=5777.,
-                dur=700.,
-                cadence_hours=6.,
-                incl=None,
-                level='random',
-                sim_id=None,
-                odir=None,
-                verbose=True,
-                doplot=True,
-                random_seed=None):
+def simulate_lc(teff: float = 5777.,
+                dur: float = 700.,
+                cadence_hours: float = 6.,
+                incl: Optional[float] = None,
+                level: str = 'random',
+                sim_id: Optional[str] = None,
+                odir: Optional[str] = None,
+                verbose: bool = True,
+                doplot: bool = True,
+                random_seed: Optional[int] = None
+                ) -> None:
+    """ Simulate a lightcurve.
+    """
     
     set_random_seed(random_seed)
 
@@ -474,7 +531,7 @@ def simulate_lc(teff=5777.,
     pmin, pmax = get_prange_from_teff_and_prot(teff, prot)
     lmin, lmax = get_latrange()
     omega_0, omega_1 = get_omega01_from_prange_and_latrange(pmin, pmax, lmin, lmax)
-    pcyc =  get_pcyc_from_prot(prot)
+    pcyc = get_pcyc_from_prot(prot)
     clen = pcyc / YEAR2DAY
     coverlap = RNG.random() * 0.1 * clen
     acyc = get_acyc_from_bv_and_lrhk(bv, lrhk, level=level)
@@ -483,7 +540,7 @@ def simulate_lc(teff=5777.,
         incl = np.arccos(RNG.random()) / DEG2RAD
     
     # save star's overall properties at the top of the regions file
-    rfile = os.path.join(odir, 'regions_{}.txt'.format(sim_id)) # save modified regions params
+    rfile = os.path.join(odir, 'regions_{}.txt'.format(sim_id))  # save modified regions params
     flo = open(rfile, 'w')
     flo.write('# T_eff = {} K\n'.format(teff))
     flo.write('# B-V = {} mag\n'.format(bv))
@@ -549,10 +606,10 @@ def simulate_lc(teff=5777.,
     reg_arr[0] -= t0
 
     # simulate LC
-    s = spots(reg_arr, incl = incl, omega_0 = omega_0, omega_1 = omega_1,
-              threshold = 0.1, dur = dur)
+    s = Spots(reg_arr, incl=incl, omega_0=omega_0, omega_1=omega_1,
+              threshold=0.1, dur=dur)
     time = np.r_[0:dur:cadence_hours/24.]
-    area, ome, beta, dF = s.calc(time)
+    area, ome, beta, delta_flux = s.calc(time)
 
     # save individual spot properties
     header = '{:6s} {:6s} {:6s} {:6s} {:8s} {:6s} {:6s}'.format('LAT', 'LON', 'PROT', 'T_MAX', 'A_MAX', 'TAU', 'TAU_R')
@@ -583,14 +640,14 @@ def simulate_lc(teff=5777.,
 #            print(str_)
                 
     # save LC
-    X = np.zeros((2,len(time)))
-    X[0,:] = time
-    X[1,:] = dF.sum(0)
+    tmp = np.zeros((2, len(time)))
+    tmp[0, :] = time
+    tmp[1, :] = delta_flux.sum(0)
     lfile = os.path.join(odir, 'lightcurve_{}.txt'.format(sim_id))  # save LC
-    np.savetxt(lfile,X.T)
+    np.savetxt(lfile, tmp.T)
 
     if doplot:
-        fig, axes = plt.subplots(3,1, figsize=(13, 8), sharex=True)
+        fig, axes = plt.subplots(3, 1, figsize=(13, 8), sharex=True)
         ttl = '{} AR={:.3f} CL={:.3f} sin(i)={:.2f} Pmin={:.2f} Pmax={:.2f}, Lmax={:.2f}'
         ttl = ttl.format(sim_id, arate, clen, np.sin(incl * DEG2RAD), pmin, pmax, lmax)
         axes[0].set_title(ttl)
@@ -599,12 +656,12 @@ def simulate_lc(teff=5777.,
                 continue
             if s.t0[j] > dur:
                 continue
-            axes[0].plot(s.t0[j], s.lat[j], 'ko', markersize = s.amax[j]*(1./3e-4)*5, alpha = 0.5)
-        axes[0].set_ylim(-90,90)
+            axes[0].plot(s.t0[j], s.lat[j], 'ko', markersize=s.amax[j]*(1./3e-4)*5, alpha=0.5)
+        axes[0].set_ylim(-90, 90)
         axes[0].set_ylabel('spot lat. (deg)')
         axes[1].plot(time, area.sum(0), 'k-')
         axes[1].set_ylabel('spot coverage')        
-        axes[2].plot(time, dF.sum(0), 'k-')
+        axes[2].plot(time, delta_flux.sum(0), 'k-')
         axes[2].set_ylabel('delta flux')
         axes[2].set_xlim(0, dur)
         axes[2].set_xlabel('time (days)')
