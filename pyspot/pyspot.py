@@ -575,21 +575,6 @@ def simulate_lc(effective_temperature: float = 5777.,
         stellar_inclination = np.arccos(RNG.random()) / DEG2RAD
     
     # save star's overall properties at the top of the regions file
-    rfile = os.path.join(output_dir, 'regions_{}.txt'.format(simulation_label))  # save modified regions params
-    flo = open(rfile, 'w')
-    flo.write('# T_eff = {} K\n'.format(effective_temperature))
-    flo.write('# B-V = {} mag\n'.format(bv))
-    flo.write("# log R'_HK = {} \n".format(lrhk))
-    flo.write('# P_rot = {} days\n'.format(prot))
-    flo.write('# P_min = {} days\n'.format(pmin))
-    flo.write('# P_max = {} days\n'.format(pmax))
-    flo.write('# max. latitude = {} deg\n'.format(lmax))
-    flo.write('# P_cycle = {} years\n'.format(clen))
-    flo.write('# Cycle overlap = {} years\n'.format(coverlap))
-    flo.write('# Activity rate = {} solar\n'.format(arate))
-    flo.write('# sin(incl) = {}\n'.format(np.sin(stellar_inclination * DEG2RAD)))
-    flo.write('# \n')
-
     meta_data = dict()
     meta_data["T_eff"] = effective_temperature
     meta_data["B-V"] = bv
@@ -644,40 +629,21 @@ def simulate_lc(effective_temperature: float = 5777.,
     time = np.r_[0:duration_days:cadence_hours/24.]
     area, ome, beta, delta_flux = s.calc(time)
 
-    # save individual spot properties
-    header = '{:6s} {:6s} {:6s} {:6s} {:8s} {:6s} {:6s}'.format('LAT', 'LON', 'PROT', 'T_MAX', 'A_MAX', 'TAU', 'TAU_R')
-    flo.write('# {}\n'.format(header))
-#    if verbose:
-#        print(header)
-    header = '{:6s} {:6s} {:6s} {:6s} {:8s} {:6s} {:6s}'.format('deg', 'deg', 'days', 'days', 'muHem', 'days', 'periods')
-    flo.write('# {}\n'.format(header))
-#    if verbose:
-#        print(header)
     prot = 2 * np.pi / ome / DAY2SEC
     lifetime = s.amax / s.decay_rate
 
+    # Write the spot properties to file.
     tab = Table([s.lat, s.lon, prot, s.t0, s.amax*1e6, lifetime, lifetime/prot],
                 names=('LAT', 'LON', 'PROT', 'T_MAX', 'A_MAX', 'TAU', 'TAU_R'),
                 meta=meta_data)
     filename = os.path.join(output_dir, 'regions_{}.ecsv'.format(simulation_label))
     tab.write(filename, overwrite=True)
-
-    for i in range(s.nspot):
-        # if area[i,:].max() == 0:
-        #     # spot came too early or too late or was too short lived given cadence
-        #     continue
-
-        str_ = '{:6.6f} {:6.6f} {:6.6f} {:6.6f} {:6.6f} {:6.6f} {:6.6f}'.format(s.lat[i], s.lon[i], prot[i], s.t0[i], s.amax[i] * 1e6, lifetime[i], lifetime[i]/prot[i])
-        flo.write('{}\n'.format(str_))
-#        if verbose:
-#            print(str_)
                 
-    # save LC
-    tmp = np.zeros((2, len(time)))
-    tmp[0, :] = time
-    tmp[1, :] = delta_flux.sum(0)
-    lfile = os.path.join(output_dir, 'lightcurve_{}.txt'.format(simulation_label))  # save LC
-    np.savetxt(lfile, tmp.T)
+    # Write the lightcurve to file.
+    tab = Table([time, delta_flux.sum(0)],
+                names=('TIME', 'FLUX'))
+    filename = os.path.join(output_dir, 'lightcurve_{}.ecsv'.format(simulation_label))
+    tab.write(filename, overwrite=True)
 
     if diagnostic_plots:
         fig, axes = plt.subplots(3, 1, figsize=(13, 8), sharex=True)
