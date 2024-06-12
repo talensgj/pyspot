@@ -2,10 +2,13 @@ import os
 from typing import Optional
 
 import numpy as np
+from numpy.typing import ArrayLike
 from numpy.random import default_rng
 from scipy.interpolate import interp1d
 
 from astropy.table import Table
+
+from . import spotmodels
 
 import matplotlib.pyplot as plt
 
@@ -157,6 +160,19 @@ def get_acyc_from_bv_and_lrhk(bv, lrhk, level='random'):
 def get_arate_from_acyc(acyc):
     # asun = get_acyc_from_bv_and_lrhk(BV_SUN, LRHK_SUN)
     return acyc/ASUN
+
+
+def get_decay_rate(nspots):
+    # The settings below are designed approximately match the distributions used in
+    # Borgniet et al. (2015) and Meunier et al. (2019)
+
+    mea = 15 * 1e-6
+    med = 10 * 1e-6
+    mu = np.log(med)
+    sig = np.sqrt(2 * np.log(mea / med))
+    decay_rate = RNG.lognormal(mean=mu, sigma=sig, size=nspots)
+
+    return decay_rate
 
 ###########################
 # ACTIVE REGION EMERGENCE #
@@ -506,6 +522,10 @@ def simulate_lc(effective_temperature: float = 5777.,
                 stellar_inclination: Optional[float] = None,
                 activity_level: str = 'random',
                 activity_phase: tuple[float, float] = (0., 1.),
+                min_area: float = 1e-8,
+                evolution: str = 'squared-exponential',
+                ld_type: str = 'linear',
+                ld_pars: ArrayLike = (0.6,),
                 simulation_label: Optional[str] = None,
                 output_dir: Optional[str] = None,
                 verbose: bool = True,
@@ -534,6 +554,15 @@ def simulate_lc(effective_temperature: float = 5777.,
     activity_phase: tuple
         Set the phase range in the activity cycle that corresponds to the middle
         of the duration (default: [0, 1]).
+    min_area: float
+        Do not consider spots when their area is smaller than this value in
+        hemispheres (default: 1e-8 hemispheres).
+    evolution: str
+        The way the spot area evolves with time.
+    ld_type : str
+        The limd-darkening law used (default: 'linear').
+    ld_pars : tuple
+        The limb-darkening parameters to use (default: (0.6,)).
     simulation_label: str
         String used in the output file names (default: 'test').
     output_dir: str
@@ -557,7 +586,7 @@ def simulate_lc(effective_temperature: float = 5777.,
     if output_dir is None:
         output_dir = os.getcwd()
     else:
-        os.makedirs(output_dir, exist_ok=False)
+        os.makedirs(output_dir, exist_ok=True)
 
     # select parameters
     bv = get_stpar_from_teff(effective_temperature)
@@ -615,32 +644,52 @@ def simulate_lc(effective_temperature: float = 5777.,
     # Pick a time t0 such that the middle of the duration falls within a certain phase range of the activity cycle.
     phase0 = activity_phase[0] + RNG.random() * (activity_phase[1] - activity_phase[0])
     t0 = (n + phase0)*pcyc - duration_days/2
-
-    # plt.plot(reg_arr[0] - t0, reg_arr[3], '.')
-    # plt.axvspan(0, dur, alpha=0.2)
-    # plt.axvspan(n*pcyc - dur/2 - t0, (n + 1)*pcyc + dur/2 - t0, alpha=0.2)
-    # plt.show()
-
     reg_arr[0] -= t0
 
     # simulate LC
-    s = Spots(reg_arr, incl=stellar_inclination, omega_0=omega_0, omega_1=omega_1,
-              threshold=0.1, dur=duration_days)
-    time = np.r_[0:duration_days:cadence_hours/24.]
-    area, ome, beta, delta_flux = s.calc(time)
+    # s = Spots(reg_arr, incl=stellar_inclination, omega_0=omega_0, omega_1=omega_1,
+    #           threshold=0.1, dur=duration_days)
+    # time = np.r_[0:duration_days:cadence_hours/24.]
+    # area, ome, beta, delta_flux = s.calc(time)
 
-    prot = 2 * np.pi / ome / DAY2SEC
-    lifetime = s.amax / s.decay_rate
+    # Unpack the regions and compute omega and decay_rate for each spot.
+    tmax = reg_arr[0, :]
+    lat = reg_arr[1, :]
+    lon = reg_arr[2, :]
+    amax = reg_arr[3, :]**2 * 300 * 1e-6  # Area in hemispheres.
+    omega = get_omega_from_lat_and_omega01(lat, omega_0, omega_1)
+    decay_rate = get_decay_rate(len(tmax))
+
+    prot = 2 * np.pi / omega / DAY2SEC
+    lifetime = amax / decay_rate
+
+    # Create the spots table.
+    spots_table = Table([lat, lon, prot, tmax, amax*1e6, lifetime, lifetime/prot],
+                        names=('LAT', 'LON', 'PROT', 'T_MAX', 'A_MAX', 'TAU', 'TAU_R'),
+                        meta=meta_data)
+
+    # Remove spots that do not contribute to the simulated lightcurve.
+    time = np.r_[0:duration_days:cadence_hours / 24.]
+    spots_table = spotmodels.filter_spots_table(time,
+                                                spots_table,
+                                                min_area=min_area,
+                                                evolution=evolution)
 
     # Write the spot properties to file.
-    tab = Table([s.lat, s.lon, prot, s.t0, s.amax*1e6, lifetime, lifetime/prot],
-                names=('LAT', 'LON', 'PROT', 'T_MAX', 'A_MAX', 'TAU', 'TAU_R'),
-                meta=meta_data)
     filename = os.path.join(output_dir, 'regions_{}.ecsv'.format(simulation_label))
-    tab.write(filename, overwrite=True)
-                
+    spots_table.write(filename, overwrite=True)
+
+    # Simulate the lightcurve.
+    flux = spotmodels.kipping_spot_model(time,
+                                         spots_table,
+                                         inc_star=stellar_inclination,
+                                         ld_type=ld_type,
+                                         ld_pars=ld_pars,
+                                         min_area=min_area,
+                                         evolution=evolution)
+
     # Write the lightcurve to file.
-    tab = Table([time, delta_flux.sum(0)],
+    tab = Table([time, flux],
                 names=('TIME', 'FLUX'))
     filename = os.path.join(output_dir, 'lightcurve_{}.ecsv'.format(simulation_label))
     tab.write(filename, overwrite=True)
@@ -650,17 +699,17 @@ def simulate_lc(effective_temperature: float = 5777.,
         ttl = '{} AR={:.3f} CL={:.3f} sin(i)={:.2f} Pmin={:.2f} Pmax={:.2f}, Lmax={:.2f}'
         ttl = ttl.format(simulation_label, arate, clen, np.sin(stellar_inclination * DEG2RAD), pmin, pmax, lmax)
         axes[0].set_title(ttl)
-        for j in range(s.nspot):
-            if s.t0[j] < -10:
-                continue
-            if s.t0[j] > duration_days:
-                continue
-            axes[0].plot(s.t0[j], s.lat[j], 'ko', markersize=s.amax[j]*(1./3e-4)*5, alpha=0.5)
+
+        area = np.zeros_like(time)
+        for row in spots_table:
+            area += spotmodels.compute_spot_area(time, row, min_area=min_area, evolution=evolution)
+            axes[0].plot(row['T_MAX'], row['LAT'], 'ko', markersize=row['A_MAX']*1e-6*(1./3e-4)*5, alpha=0.5)
+
         axes[0].set_ylim(-90, 90)
         axes[0].set_ylabel('spot lat. (deg)')
-        axes[1].plot(time, area.sum(0), 'k-')
+        axes[1].plot(time, area, 'k-')
         axes[1].set_ylabel('spot coverage')        
-        axes[2].plot(time, delta_flux.sum(0), 'k-')
+        axes[2].plot(time, flux - 1, 'k-')
         axes[2].set_ylabel('delta flux')
         axes[2].set_xlim(0, duration_days)
         axes[2].set_xlabel('time (days)')
