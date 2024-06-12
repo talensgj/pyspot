@@ -505,6 +505,7 @@ def simulate_lc(teff: float = 5777.,
                 cadence_hours: float = 6.,
                 incl: Optional[float] = None,
                 level: str = 'random',
+                activity_phase: tuple[float, float] = (0., 1.),
                 sim_id: Optional[str] = None,
                 odir: Optional[str] = None,
                 verbose: bool = True,
@@ -592,11 +593,9 @@ def simulate_lc(teff: float = 5777.,
                       maxlat=lmax, minlat=lmin,
                       tsim=span, tstart=0, verbose=verbose)
 
-    # Pick point to be t0 such that the middle of the requested duration covers the entire middle cycle.
-    # t0 = n*pcyc - dur/2 + RNG.random()*pcyc
-
-    # Picke a point to be t0 such that the middle of the requested duration covers the middle of the middle cycle.
-    t0 = (n + 0.25)*pcyc - dur/2 + RNG.random()*pcyc/2
+    # Pick a time t0 such that the middle of the duration falls within a certain phase range of the activity cycle.
+    phase0 = activity_phase[0] + RNG.random() * (activity_phase[1] - activity_phase[0])
+    t0 = (n + phase0)*pcyc - dur/2
 
     # plt.plot(reg_arr[0] - t0, reg_arr[3], '.')
     # plt.axvspan(0, dur, alpha=0.2)
