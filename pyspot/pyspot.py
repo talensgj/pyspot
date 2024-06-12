@@ -500,50 +500,84 @@ class Spots:
         return area, ome, beta, delta_flux
 
 
-def simulate_lc(teff: float = 5777.,
-                dur: float = 700.,
+def simulate_lc(effective_temperature: float = 5777.,
+                duration_days: float = 700.,
                 cadence_hours: float = 6.,
-                incl: Optional[float] = None,
-                level: str = 'random',
+                stellar_inclination: Optional[float] = None,
+                activity_level: str = 'random',
                 activity_phase: tuple[float, float] = (0., 1.),
-                sim_id: Optional[str] = None,
-                odir: Optional[str] = None,
+                simulation_label: Optional[str] = None,
+                output_dir: Optional[str] = None,
                 verbose: bool = True,
-                doplot: bool = True,
+                diagnostic_plots: bool = True,
                 random_seed: Optional[int] = None
                 ) -> None:
     """ Simulate a lightcurve.
+
+    Parameters
+    ----------
+    effective_temperature: float
+        Effective temperature of the star to be simulated in kelvin
+        (default: 5777 K).
+    duration_days: float
+        The duration of the simulated lightcurve in days (default 700 days).
+    cadence_hours: float
+        The cadence at which to simulate the lightcurve in hours
+        (default 6 hours).
+    stellar_inclination: float or None
+        The stellar inclination in degrees if not given a random value is chosen (
+        default: None).
+    activity_level: str
+        The activity level at which to simulate the star. Takes values:
+        'random', 'low' lower 10th percentile, 'high' upper 10th percentile
+        (default: 'random').
+    activity_phase: tuple
+        Set the phase range in the activity cycle that corresponds to the middle
+        of the duration (default: [0, 1]).
+    simulation_label: str
+        String used in the output file names (default: 'test').
+    output_dir: str
+        The name of the output directory. If it does not exist it will be
+        created (default: current directory).
+    verbose: bool
+        Print diagnostic messages to terminal (default: True).
+    diagnostic_plots: bool
+        If True create diagnostic plots (default: True).
+    random_seed: int
+        The random seed to use with the random number generator, if None a
+        default random seed is used (default: None).
+
     """
     
     set_random_seed(random_seed)
 
-    if sim_id is None:
-        sim_id = 'test'
+    if simulation_label is None:
+        simulation_label = 'test'
 
-    if odir is None:
-        odir = os.getcwd()
+    if output_dir is None:
+        output_dir = os.getcwd()
     else:
-        os.makedirs(odir, exist_ok=False)
+        os.makedirs(output_dir, exist_ok=False)
 
     # select parameters
-    bv = get_stpar_from_teff(teff)
+    bv = get_stpar_from_teff(effective_temperature)
     lrhk = get_lrhk_from_bv(bv)
     prot = get_prot_from_lrhk_and_bv(lrhk, bv)
-    pmin, pmax = get_prange_from_teff_and_prot(teff, prot)
+    pmin, pmax = get_prange_from_teff_and_prot(effective_temperature, prot)
     lmin, lmax = get_latrange()
     omega_0, omega_1 = get_omega01_from_prange_and_latrange(pmin, pmax, lmin, lmax)
     pcyc = get_pcyc_from_prot(prot)
     clen = pcyc / YEAR2DAY
     coverlap = RNG.random() * 0.1 * clen
-    acyc = get_acyc_from_bv_and_lrhk(bv, lrhk, level=level)
+    acyc = get_acyc_from_bv_and_lrhk(bv, lrhk, level=activity_level)
     arate = get_arate_from_acyc(acyc)
-    if incl is None:
-        incl = np.arccos(RNG.random()) / DEG2RAD
+    if stellar_inclination is None:
+        stellar_inclination = np.arccos(RNG.random()) / DEG2RAD
     
     # save star's overall properties at the top of the regions file
-    rfile = os.path.join(odir, 'regions_{}.txt'.format(sim_id))  # save modified regions params
+    rfile = os.path.join(output_dir, 'regions_{}.txt'.format(simulation_label))  # save modified regions params
     flo = open(rfile, 'w')
-    flo.write('# T_eff = {} K\n'.format(teff))
+    flo.write('# T_eff = {} K\n'.format(effective_temperature))
     flo.write('# B-V = {} mag\n'.format(bv))
     flo.write("# log R'_HK = {} \n".format(lrhk))
     flo.write('# P_rot = {} days\n'.format(prot))
@@ -553,11 +587,11 @@ def simulate_lc(teff: float = 5777.,
     flo.write('# P_cycle = {} years\n'.format(clen))
     flo.write('# Cycle overlap = {} years\n'.format(coverlap))
     flo.write('# Activity rate = {} solar\n'.format(arate))
-    flo.write('# sin(incl) = {}\n'.format(np.sin(incl * DEG2RAD)))
+    flo.write('# sin(incl) = {}\n'.format(np.sin(stellar_inclination * DEG2RAD)))
     flo.write('# \n')
 
     meta_data = dict()
-    meta_data["T_eff"] = teff
+    meta_data["T_eff"] = effective_temperature
     meta_data["B-V"] = bv
     meta_data["log R'_HK"] = lrhk
     meta_data["P_rot"] = prot
@@ -571,7 +605,7 @@ def simulate_lc(teff: float = 5777.,
     # print them to screen          
     if verbose:
         print('GLOBAL PROPERTIES')
-        print('T_eff = {} K'.format(teff))
+        print('T_eff = {} K'.format(effective_temperature))
         print('B-V = {} mag'.format(bv))
         print("log R'_HK = {}".format(lrhk))
         print('P_rot = {} days'.format(prot))
@@ -581,11 +615,11 @@ def simulate_lc(teff: float = 5777.,
         print('P_cycle = {} years'.format(clen))
         print('Cycle overlap = {} years'.format(coverlap))
         print('Activity rate = {} solar'.format(arate))
-        print('sin(incl) = {}'.format(np.sin(incl * DEG2RAD)))
+        print('sin(incl) = {}'.format(np.sin(stellar_inclination * DEG2RAD)))
         print('')
 
     # Simulate a generous time-span to ensure we have all the spots we need.
-    n = np.ceil(dur/pcyc/2) + 1
+    n = np.ceil(duration_days/pcyc/2) + 1
     span = (2*n + 1)*pcyc
         
     # simulate regions
@@ -595,7 +629,7 @@ def simulate_lc(teff: float = 5777.,
 
     # Pick a time t0 such that the middle of the duration falls within a certain phase range of the activity cycle.
     phase0 = activity_phase[0] + RNG.random() * (activity_phase[1] - activity_phase[0])
-    t0 = (n + phase0)*pcyc - dur/2
+    t0 = (n + phase0)*pcyc - duration_days/2
 
     # plt.plot(reg_arr[0] - t0, reg_arr[3], '.')
     # plt.axvspan(0, dur, alpha=0.2)
@@ -605,9 +639,9 @@ def simulate_lc(teff: float = 5777.,
     reg_arr[0] -= t0
 
     # simulate LC
-    s = Spots(reg_arr, incl=incl, omega_0=omega_0, omega_1=omega_1,
-              threshold=0.1, dur=dur)
-    time = np.r_[0:dur:cadence_hours/24.]
+    s = Spots(reg_arr, incl=stellar_inclination, omega_0=omega_0, omega_1=omega_1,
+              threshold=0.1, dur=duration_days)
+    time = np.r_[0:duration_days:cadence_hours/24.]
     area, ome, beta, delta_flux = s.calc(time)
 
     # save individual spot properties
@@ -625,7 +659,7 @@ def simulate_lc(teff: float = 5777.,
     tab = Table([s.lat, s.lon, prot, s.t0, s.amax*1e6, lifetime, lifetime/prot],
                 names=('LAT', 'LON', 'PROT', 'T_MAX', 'A_MAX', 'TAU', 'TAU_R'),
                 meta=meta_data)
-    filename = os.path.join(odir, 'regions_{}.ecsv'.format(sim_id))
+    filename = os.path.join(output_dir, 'regions_{}.ecsv'.format(simulation_label))
     tab.write(filename, overwrite=True)
 
     for i in range(s.nspot):
@@ -642,18 +676,18 @@ def simulate_lc(teff: float = 5777.,
     tmp = np.zeros((2, len(time)))
     tmp[0, :] = time
     tmp[1, :] = delta_flux.sum(0)
-    lfile = os.path.join(odir, 'lightcurve_{}.txt'.format(sim_id))  # save LC
+    lfile = os.path.join(output_dir, 'lightcurve_{}.txt'.format(simulation_label))  # save LC
     np.savetxt(lfile, tmp.T)
 
-    if doplot:
+    if diagnostic_plots:
         fig, axes = plt.subplots(3, 1, figsize=(13, 8), sharex=True)
         ttl = '{} AR={:.3f} CL={:.3f} sin(i)={:.2f} Pmin={:.2f} Pmax={:.2f}, Lmax={:.2f}'
-        ttl = ttl.format(sim_id, arate, clen, np.sin(incl * DEG2RAD), pmin, pmax, lmax)
+        ttl = ttl.format(simulation_label, arate, clen, np.sin(stellar_inclination * DEG2RAD), pmin, pmax, lmax)
         axes[0].set_title(ttl)
         for j in range(s.nspot):
             if s.t0[j] < -10:
                 continue
-            if s.t0[j] > dur:
+            if s.t0[j] > duration_days:
                 continue
             axes[0].plot(s.t0[j], s.lat[j], 'ko', markersize=s.amax[j]*(1./3e-4)*5, alpha=0.5)
         axes[0].set_ylim(-90, 90)
@@ -662,10 +696,10 @@ def simulate_lc(teff: float = 5777.,
         axes[1].set_ylabel('spot coverage')        
         axes[2].plot(time, delta_flux.sum(0), 'k-')
         axes[2].set_ylabel('delta flux')
-        axes[2].set_xlim(0, dur)
+        axes[2].set_xlim(0, duration_days)
         axes[2].set_xlabel('time (days)')
         plt.tight_layout()
-        plt.savefig(os.path.join(odir, 'lightcurve_{}.png'.format(sim_id)), dpi=180)
+        plt.savefig(os.path.join(output_dir, 'lightcurve_{}.png'.format(simulation_label)), dpi=180)
         if verbose:
             plt.show()
         else:
@@ -690,15 +724,15 @@ def main():
     for star_type, teff, dur, level in variations:
 
         for i in range(100):
-            simulate_lc(teff=teff,
-                        dur=dur,
+            simulate_lc(effective_temperature=teff,
+                        duration_days=dur,
                         cadence_hours=6.0,
-                        incl=90.0,
-                        level=level,
-                        sim_id=f'{star_type}_d{dur:.1f}_teff{teff:.1f}_{level}_{i}',
-                        odir='spots_tables_20240416',
+                        stellar_inclination=90.0,
+                        activity_level=level,
+                        simulation_label=f'{star_type}_d{dur:.1f}_teff{teff:.1f}_{level}_{i}',
+                        output_dir='spots_tables_20240416',
                         verbose=False,
-                        doplot=True)
+                        diagnostic_plots=True)
 
     return
 
