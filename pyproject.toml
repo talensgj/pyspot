@@ -25,4 +25,4 @@ include-package-data = true
 pyspot = ["*.dat", "*.yaml"]
 
 [project.scripts]
-pyspot = "pyspot.pyspot.__main__:main"
+pyspot = "pyspot.pyspot:main"

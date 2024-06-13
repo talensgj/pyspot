@@ -13,5 +13,5 @@ star:
   limb_darkening_coeffs: !!python/tuple [0.6]  # Limb-darkening coefficients.
 
 spots:
-  min_area: 1e-8  # Minimum spot area in units of hemispheres.
+  min_area: 1.0e-8  # Minimum spot area in units of hemispheres.
   evolution: 'squared-exponential'  # Time evolution of spot area.

@@ -26,7 +26,7 @@ OMEGA_SUN = 2 * np.pi / (PROT_SUN * DAY2SEC)
 ASUN = 0.12
 
 # Table of stellar properties from Meunier et al. (2019, A&A 627, A56)
-data_text = files('pyspot').joinpath('meunier_19a_t1.dat')
+data_text = files('pyspot.pyspot').joinpath('meunier_19a_t1.dat')
 t1 = Table.read(data_text, format='ascii')
 
 # Default random number generator.
@@ -741,7 +741,7 @@ def main():
     parser = argparse.ArgumentParser(prog='pyspot',
                                      description='simulate spot distributions and their associated lightcurves',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('config-file',
+    parser.add_argument('config_file',
                         type=str,
                         help='the configuration file to use')
     parser.add_argument('--label',
