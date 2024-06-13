@@ -394,126 +394,126 @@ def regions(activityrate: float = 1,
 #####################
 
 
-class Spots:
-    """ Holds parameters for spots on a given star.
-    """
-
-    def __init__(self,
-                 reg_arr: np.ndarray,
-                 incl: Optional[float] = None,
-                 omega_0: float = OMEGA_SUN,
-                 omega_1: float = 0.0,
-                 dur: Optional[float] = None,
-                 threshold: float = 0.1,
-                 random_seed: Optional[int] = None
-                 ) -> None:
-        """ Generate initial parameter set for spots (emergence times and
-            initial locations are p[)
-        """
-
-        set_random_seed(random_seed)
-
-        # set global stellar parameters which are the same for all spots
-        # inclination (in degrees)
-        if incl is None:
-            self.incl = np.arccos(np.random.uniform()) / DEG2RAD
-        else:
-            self.incl = incl
-
-        # rotation and differential rotation (in radians / sec)
-        self.omega_0 = omega_0
-        self.omega_1 = omega_1
-
-        # regions parameters
-        t0 = reg_arr[0, :]
-        lat = reg_arr[1, :]
-        lon = reg_arr[2, :]
-        ang = reg_arr[3, :]
-
-        # keep only spots emerging within specified time-span, with peak B-field > threshold
-        if dur is None:
-            self.dur = t0.max() 
-        else:
-            self.dur = dur
-
-        # mask = (t0 < self.dur) * (ang > threshold)
-        mask = ang > threshold
-        self.nspot = mask.sum()
-        self.t0 = t0[mask]
-        self.lat = lat[mask]
-        self.lon = lon[mask]
-
-        # The settings below are designed approximately match the distributions used in 
-        # Borgniet et al. (2015) and Meunier et al. (2019)        
-        # spot sizes
-        self.amax = ang[mask]**2 * 300 * 1e-6
-
-        # spot emergence and decay timescales
-        mea = 15 * 1e-6
-        med = 10 * 1e-6
-        mu = np.log(med)
-        sig = np.sqrt(2*np.log(mea/med))
-        self.decay_rate = RNG.lognormal(mean=mu, sigma=sig, size=self.nspot)
-
-    def _calci(self,
-               time: np.ndarray,
-               i: int
-               ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """ Evolve one spot and calculate its impact on the stellar flux.
-
-        NB: Currently there is no spot drift or shear
-
-        """
-
-        # Spot area (linear growth and decay)
-        area = np.zeros(len(time)) 
-        decay_time = self.amax[i] / self.decay_rate[i]
-        emerge_time = decay_time / 10.0
-
-        # exponential growth and decay
-        mask = time < self.t0[i]
-        area[mask] = self.amax[i] * np.exp(-(self.t0[i]-time[mask]) / emerge_time)
-        mask = time >= self.t0[i]
-        area[mask] = self.amax[i] * np.exp(-(time[mask]-self.t0[i]) / decay_time)
-
-#         # linear growth and decay
-#         l = (time >= (self.t0[i]-emerge_time)) * (time < self.t0[i])
-#         area[l] = self.amax[i] * (self.t0[i]-time[l]) / emerge_time
-#         l = (time >= self.t0[i]) * (time < (self.t0[i]+decay_time))
-#         area[l] = self.amax[i] * (1-(time[l]-self.t0[i]) / decay_time)
-
-        # Rotation rate
-        ome = get_omega_from_lat_and_omega01(self.lat[i], self.omega_0, self.omega_1)  # in radians per second
-
-        # Fore-shortening 
-        phase = ome * time * DAY2SEC + self.lon[i] * DEG2RAD  # in radians
-        beta = (np.cos(self.incl * DEG2RAD) * np.sin(self.lat[i] * DEG2RAD) +
-                np.sin(self.incl * DEG2RAD) * np.cos(self.lat[i] * DEG2RAD) * np.cos(phase))
-
-        # Differential effect on stellar flux
-        delta_flux = - 2 * area * beta
-        delta_flux[beta < 0] = 0
-
-        return area, ome, beta, delta_flux
-
-    def calc(self, time: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """ Calculations for all spots.
-        """
-
-        N = len(time)
-        M = self.nspot
-        area = np.zeros((M, N))
-        ome = np.zeros(M)
-        beta = np.zeros((M, N))
-        delta_flux = np.zeros((M, N))
-        for i in np.arange(M):
-            area_i, omega_i, beta_i, dflux_i = self._calci(time, i)
-            area[i, :] = area_i
-            ome[i] = omega_i
-            beta[i, :] = beta_i
-            delta_flux[i, :] = dflux_i
-
-        return area, ome, beta, delta_flux
+# class Spots:
+#     """ Holds parameters for spots on a given star.
+#     """
+#
+#     def __init__(self,
+#                  reg_arr: np.ndarray,
+#                  incl: Optional[float] = None,
+#                  omega_0: float = OMEGA_SUN,
+#                  omega_1: float = 0.0,
+#                  dur: Optional[float] = None,
+#                  threshold: float = 0.1,
+#                  random_seed: Optional[int] = None
+#                  ) -> None:
+#         """ Generate initial parameter set for spots (emergence times and
+#             initial locations are p[)
+#         """
+#
+#         set_random_seed(random_seed)
+#
+#         # set global stellar parameters which are the same for all spots
+#         # inclination (in degrees)
+#         if incl is None:
+#             self.incl = np.arccos(np.random.uniform()) / DEG2RAD
+#         else:
+#             self.incl = incl
+#
+#         # rotation and differential rotation (in radians / sec)
+#         self.omega_0 = omega_0
+#         self.omega_1 = omega_1
+#
+#         # regions parameters
+#         t0 = reg_arr[0, :]
+#         lat = reg_arr[1, :]
+#         lon = reg_arr[2, :]
+#         ang = reg_arr[3, :]
+#
+#         # keep only spots emerging within specified time-span, with peak B-field > threshold
+#         if dur is None:
+#             self.dur = t0.max()
+#         else:
+#             self.dur = dur
+#
+#         # mask = (t0 < self.dur) * (ang > threshold)
+#         mask = ang > threshold
+#         self.nspot = mask.sum()
+#         self.t0 = t0[mask]
+#         self.lat = lat[mask]
+#         self.lon = lon[mask]
+#
+#         # The settings below are designed approximately match the distributions used in
+#         # Borgniet et al. (2015) and Meunier et al. (2019)
+#         # spot sizes
+#         self.amax = ang[mask]**2 * 300 * 1e-6
+#
+#         # spot emergence and decay timescales
+#         mea = 15 * 1e-6
+#         med = 10 * 1e-6
+#         mu = np.log(med)
+#         sig = np.sqrt(2*np.log(mea/med))
+#         self.decay_rate = RNG.lognormal(mean=mu, sigma=sig, size=self.nspot)
+#
+#     def _calci(self,
+#                time: np.ndarray,
+#                i: int
+#                ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+#         """ Evolve one spot and calculate its impact on the stellar flux.
+#
+#         NB: Currently there is no spot drift or shear
+#
+#         """
+#
+#         # Spot area (linear growth and decay)
+#         area = np.zeros(len(time))
+#         decay_time = self.amax[i] / self.decay_rate[i]
+#         emerge_time = decay_time / 10.0
+#
+#         # exponential growth and decay
+#         mask = time < self.t0[i]
+#         area[mask] = self.amax[i] * np.exp(-(self.t0[i]-time[mask]) / emerge_time)
+#         mask = time >= self.t0[i]
+#         area[mask] = self.amax[i] * np.exp(-(time[mask]-self.t0[i]) / decay_time)
+#
+# #         # linear growth and decay
+# #         l = (time >= (self.t0[i]-emerge_time)) * (time < self.t0[i])
+# #         area[l] = self.amax[i] * (self.t0[i]-time[l]) / emerge_time
+# #         l = (time >= self.t0[i]) * (time < (self.t0[i]+decay_time))
+# #         area[l] = self.amax[i] * (1-(time[l]-self.t0[i]) / decay_time)
+#
+#         # Rotation rate
+#         ome = get_omega_from_lat_and_omega01(self.lat[i], self.omega_0, self.omega_1)  # in radians per second
+#
+#         # Fore-shortening
+#         phase = ome * time * DAY2SEC + self.lon[i] * DEG2RAD  # in radians
+#         beta = (np.cos(self.incl * DEG2RAD) * np.sin(self.lat[i] * DEG2RAD) +
+#                 np.sin(self.incl * DEG2RAD) * np.cos(self.lat[i] * DEG2RAD) * np.cos(phase))
+#
+#         # Differential effect on stellar flux
+#         delta_flux = - 2 * area * beta
+#         delta_flux[beta < 0] = 0
+#
+#         return area, ome, beta, delta_flux
+#
+#     def calc(self, time: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+#         """ Calculations for all spots.
+#         """
+#
+#         N = len(time)
+#         M = self.nspot
+#         area = np.zeros((M, N))
+#         ome = np.zeros(M)
+#         beta = np.zeros((M, N))
+#         delta_flux = np.zeros((M, N))
+#         for i in np.arange(M):
+#             area_i, omega_i, beta_i, dflux_i = self._calci(time, i)
+#             area[i, :] = area_i
+#             ome[i] = omega_i
+#             beta[i, :] = beta_i
+#             delta_flux[i, :] = dflux_i
+#
+#         return area, ome, beta, delta_flux
 
 
 def simulate_lc(effective_temperature: float = 5777.,
