@@ -681,7 +681,7 @@ def simulate_lc(effective_temperature: float = 5777.,
                                                 evolution=evolution)
 
     # Write the spot properties to file.
-    filename = os.path.join(output_dir, 'regions_{}.ecsv'.format(simulation_label))
+    filename = os.path.join(output_dir, f'{simulation_label}_regions.ecsv')
     spots_table.write(filename, overwrite=True)
 
     # Simulate the lightcurve.
@@ -696,7 +696,7 @@ def simulate_lc(effective_temperature: float = 5777.,
     # Write the lightcurve to file.
     tab = Table([time, flux],
                 names=('TIME', 'FLUX'))
-    filename = os.path.join(output_dir, 'lightcurve_{}.ecsv'.format(simulation_label))
+    filename = os.path.join(output_dir, f'{simulation_label}_lightcurve.ecsv')
     tab.write(filename, overwrite=True)
 
     if diagnostic_plots:
@@ -719,7 +719,7 @@ def simulate_lc(effective_temperature: float = 5777.,
         axes[2].set_xlim(0, duration_days)
         axes[2].set_xlabel('time (days)')
         plt.tight_layout()
-        plt.savefig(os.path.join(output_dir, 'lightcurve_{}.png'.format(simulation_label)), dpi=180)
+        plt.savefig(os.path.join(output_dir, f'{simulation_label}_lightcurve.png'), dpi=180)
         if verbose:
             plt.show()
         else:
