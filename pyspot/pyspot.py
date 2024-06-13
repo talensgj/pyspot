@@ -1,5 +1,6 @@
 import os
 from typing import Optional
+from importlib_resources import files
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -22,7 +23,9 @@ PROT_SUN = 27.0
 OMEGA_SUN = 2 * np.pi / (PROT_SUN * DAY2SEC)
 ASUN = 0.12
 
-t1 = Table.read('meunier_19a_t1.dat', format='ascii')
+# Table of stellar properties from Meunier et al. (2019, A&A 627, A56)
+data_text = files('pyspot').joinpath('meunier_19a_t1.dat')
+t1 = Table.read(data_text, format='ascii')
 
 # Default random number generator.
 RNG = default_rng(seed=8348435735)
