@@ -1,0 +1,17 @@
+---
+observation:
+  cadence: 6.  # Observation cadence in hours.
+  duration: 700.  # Observation duration in days.
+  random_seed: 8348435735  # Seed of the random number generator.
+
+star:
+  effective_temperature: 5777  # Effective tmeperature of the star in Kelvin.
+  stellar_inclination: null  # Stellar inclination in degrees, if null it is randomized.
+  activity_level: 'random'  # Level of activity of the star, 'random', 'low' or 'high'.
+  activity_phase: !!python/tuple [0, 1]  # Allowable range of activity phases.
+  limb_darkening_law: 'linear'  # Type of limb-darkening law to be used.
+  limb_darkening_coeffs: !!python/tuple [0.6]  # Limb-darkening coefficients.
+
+spots:
+  min_area: 1e-8  # Minimum spot area in units of hemispheres.
+  evolution: 'squared-exponential'  # Time evolution of spot area.

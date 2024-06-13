@@ -1,4 +1,6 @@
 import os
+import yaml
+import argparse
 from typing import Optional
 from importlib_resources import files
 
@@ -726,31 +728,58 @@ def simulate_lc(effective_temperature: float = 5777.,
     return
 
 
+def read_yaml(file_path):
+
+    with open(file_path, "r") as f:
+        data = yaml.load(f, Loader=yaml.FullLoader)
+
+    return data
+
+
 def main():
 
-    # variations = [('F5', 6452., 90.),
-    #               ('G5', 5612., 90.),
-    #               ('K4', 4607., 90.)]
+    parser = argparse.ArgumentParser(prog='pyspot',
+                                     description='simulate spot distributions and their associated lightcurves',
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('config-file',
+                        type=str,
+                        help='the configuration file to use')
+    parser.add_argument('--label',
+                        type=str,
+                        default=None,
+                        help='label to use in generating output filename')
+    parser.add_argument('--output-dir',
+                        type=str,
+                        default=None,
+                        help='output directory, will be created if it does not exist')
+    parser.add_argument('--verbose',
+                        action='store_true',
+                        help='print diagnostic messages')
+    parser.add_argument('--plots',
+                        action='store_true',
+                        help='create diagnostic plots')
+    args = parser.parse_args()
 
-    variations = [('F5', 6550., 90., 'high'),
-                  ('G5', 5660., 90., 'high'),
-                  ('K5', 4440., 90., 'high'),
-                  ('F5', 6550., 730., 'high'),
-                  ('G5', 5660., 730., 'high'),
-                  ('K5', 4440., 730., 'high')]
+    # Read the configuration file.
+    filename = args.config_file
+    config = read_yaml(filename)
 
-    for star_type, teff, dur, level in variations:
-
-        for i in range(100):
-            simulate_lc(effective_temperature=teff,
-                        duration_days=dur,
-                        cadence_hours=6.0,
-                        stellar_inclination=90.0,
-                        activity_level=level,
-                        simulation_label=f'{star_type}_d{dur:.1f}_teff{teff:.1f}_{level}_{i}',
-                        output_dir='spots_tables_20240416',
-                        verbose=False,
-                        diagnostic_plots=True)
+    # Simulate the lightcurve.
+    simulate_lc(effective_temperature=config['star']['effective_temperature'],
+                stellar_inclination=config['star']['stellar_inclination'],
+                duration_days=config['observation']['duration'],
+                cadence_hours=config['observation']['cadence'],
+                activity_level=config['star']['activity_level'],
+                activity_phase=config['star']['activity_phase'],
+                min_area=config['spots']['min_area'],
+                evolution=config['spots']['evolution'],
+                ld_type=config['star']['limb_darkening_law'],
+                ld_pars=config['star']['limb_darkening_coeffs'],
+                simulation_label=args.label,
+                output_dir=args.output_dir,
+                verbose=args.verbose,
+                diagnostic_plots=args.plots,
+                random_seed=config['observation']['random_seed'])
 
     return
 
