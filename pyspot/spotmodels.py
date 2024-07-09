@@ -370,11 +370,22 @@ def kipping_spot_model(time: np.ndarray,
     flux = np.ones_like(time) - const1
     for i in range(len(spots_table)):
 
-        alpha, beta, lat, lon = compute_spot_parameters(time,
-                                                        spots_table[i],
-                                                        inc_star=inc_star,
-                                                        min_area=min_area,
-                                                        evolution=evolution)
+        alpha, beta, _, _ = compute_spot_parameters(time,
+                                                    spots_table[i],
+                                                    inc_star=inc_star,
+                                                    min_area=min_area,
+                                                    evolution=evolution)
+
+        mask = alpha > 0
+        if not np.any(mask):
+            continue
+
+        args, = np.where(mask)
+        imin = np.amin(args)
+        imax = np.amax(args) + 1  # Add 1 because slices are exclusive.
+
+        alpha = alpha[imin:imax]
+        beta = beta[imin:imax]
 
         # Convert to complex for use with Kipping 2012, equation 14.
         alpha = alpha.astype('complex256')
@@ -412,7 +423,7 @@ def kipping_spot_model(time: np.ndarray,
             num = zeta_neg**exp - zeta_pos**exp
             const2 += (4*ld_pars[j])/(j + 4)*num/denom
 
-        flux = flux - sky_area/np.pi*const2
+        flux[imin:imax] = flux[imin:imax] - sky_area/np.pi*const2
 
     flux = flux/(1 - const1)
 
