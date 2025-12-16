@@ -1,4 +1,4 @@
-# PySpot
+# PySpot (2025)
 
 New version of this [repository](https://github.com/saigrain/pyspot) for simulating the lightcurves of stars with starspots.
 
@@ -10,4 +10,5 @@ Once installed PySpot can be run by calling `pyspot pyspot.yaml` where `pyspot.y
  - Changed to size evolution of the star spots to a squared-exponential profile, eliminating a discontinuity in the size profile.
  - Added more control over the stars activity level and the phase of the activity cycle, making it easier to simulate stars at peak activity.
  - Various bug fixes.
+
 
