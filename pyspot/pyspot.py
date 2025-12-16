@@ -723,6 +723,7 @@ def simulate_lc(effective_temperature: float = 5777.,
         if verbose:
             plt.show()
         else:
+            plt.clf()
             plt.close('all')
 
     return
